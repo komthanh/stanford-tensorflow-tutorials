@@ -13,31 +13,6 @@ import tensorflow as tf
 
 import utils
 
-def conv_relu(inputs, filters, k_size, stride, padding, scope_name):
-    '''
-    A method that does convolution + relu on inputs
-    '''
-    #############################
-    ########## TO DO ############
-    #############################
-    return None
-
-def maxpool(inputs, ksize, stride, padding='VALID', scope_name='pool'):
-    '''A method that does max pooling on inputs'''
-    #############################
-    ########## TO DO ############
-    #############################
-    return None
-
-def fully_connected(inputs, out_dim, scope_name='fc'):
-    '''
-    A fully connected linear layer on inputs
-    '''
-    #############################
-    ########## TO DO ############
-    #############################
-    return None
-
 class ConvNet(object):
     def __init__(self):
         self.lr = 0.001
@@ -48,6 +23,7 @@ class ConvNet(object):
         self.n_classes = 10
         self.skip_step = 20
         self.n_test = 10000
+        self.training=False
 
     def get_data(self):
         with tf.name_scope('data'):
@@ -62,48 +38,66 @@ class ConvNet(object):
             self.test_init = iterator.make_initializer(test_data)    # initializer for train_data
 
     def inference(self):
-        '''
-        Build the model according to the description we've shown in class
-        '''
-        #############################
-        ########## TO DO ############
-        #############################
-        self.logits = None
+        conv1 = tf.layers.conv2d(inputs=self.img,
+                                  filters=32,
+                                  kernel_size=[5, 5],
+                                  padding='SAME',
+                                  activation=tf.nn.relu,
+                                  name='conv1')
+        pool1 = tf.layers.max_pooling2d(inputs=conv1, 
+                                        pool_size=[2, 2], 
+                                        strides=2,
+                                        name='pool1')
+
+        conv2 = tf.layers.conv2d(inputs=pool1,
+                                  filters=64,
+                                  kernel_size=[5, 5],
+                                  padding='SAME',
+                                  activation=tf.nn.relu,
+                                  name='conv2')
+        pool2 = tf.layers.max_pooling2d(inputs=conv2, 
+                                        pool_size=[2, 2], 
+                                        strides=2,
+                                        name='pool2')
+
+        feature_dim = pool2.shape[1] * pool2.shape[2] * pool2.shape[3]
+        pool2 = tf.reshape(pool2, [-1, feature_dim])
+        fc = tf.layers.dense(pool2, 1024, activation=tf.nn.relu, name='fc')
+        dropout = tf.layers.dropout(fc, 
+                                    self.keep_prob, 
+                                    training=self.training, 
+                                    name='dropout')
+        self.logits = tf.layers.dense(dropout, self.n_classes, name='logits')
 
     def loss(self):
         '''
         define loss function
         use softmax cross entropy with logits as the loss function
-        tf.nn.softmax_cross_entropy_with_logits
-        softmax is applied internally
-        don't forget to compute mean cross all sample in a batch
+        compute mean cross entropy, softmax is applied internally
         '''
-        #############################
-        ########## TO DO ############
-        #############################
-        self.loss = None
+        # 
+        with tf.name_scope('loss'):
+            entropy = tf.nn.softmax_cross_entropy_with_logits(labels=self.label, logits=self.logits)
+            self.loss = tf.reduce_mean(entropy, name='loss')
     
     def optimize(self):
         '''
         Define training op
         using Adam Gradient Descent to minimize cost
-        Don't forget to use global step
         '''
-        #############################
-        ########## TO DO ############
-        #############################
-        self.opt = None
+        self.opt = tf.train.AdamOptimizer(self.lr).minimize(self.loss, 
+                                                global_step=self.gstep)
 
     def summary(self):
         '''
         Create summaries to write on TensorBoard
-        Remember to track both training loss and test accuracy
         '''
-        #############################
-        ########## TO DO ############
-        #############################
-        self.summary_op = None
-        
+        with tf.name_scope('summaries'):
+            tf.summary.scalar('loss', self.loss)
+            tf.summary.scalar('accuracy', self.accuracy)
+            tf.summary.histogram('histogram loss', self.loss)
+            self.summary_op = tf.summary.merge_all()
+    
     def eval(self):
         '''
         Count the number of right predictions in a batch
@@ -127,6 +121,7 @@ class ConvNet(object):
     def train_one_epoch(self, sess, saver, init, writer, epoch, step):
         start_time = time.time()
         sess.run(init) 
+        self.training = True
         total_loss = 0
         n_batches = 0
         try:
@@ -140,7 +135,7 @@ class ConvNet(object):
                 n_batches += 1
         except tf.errors.OutOfRangeError:
             pass
-        saver.save(sess, 'checkpoints/convnet_starter/mnist-convnet', step)
+        saver.save(sess, 'checkpoints/convnet_layers/mnist-convnet', step)
         print('Average loss at epoch {0}: {1}'.format(epoch, total_loss/n_batches))
         print('Took: {0} seconds'.format(time.time() - start_time))
         return step
@@ -148,6 +143,7 @@ class ConvNet(object):
     def eval_once(self, sess, init, writer, epoch, step):
         start_time = time.time()
         sess.run(init)
+        self.training = False
         total_correct_preds = 0
         try:
             while True:
@@ -165,13 +161,13 @@ class ConvNet(object):
         The train function alternates between training one epoch and evaluating
         '''
         utils.safe_mkdir('checkpoints')
-        utils.safe_mkdir('checkpoints/convnet_starter')
-        writer = tf.summary.FileWriter('./graphs/convnet_starter', tf.get_default_graph())
+        utils.safe_mkdir('checkpoints/convnet_layers')
+        writer = tf.summary.FileWriter('./graphs/convnet_layers', tf.get_default_graph())
 
         with tf.Session() as sess:
             sess.run(tf.global_variables_initializer())
             saver = tf.train.Saver()
-            ckpt = tf.train.get_checkpoint_state(os.path.dirname('checkpoints/convnet_starter/checkpoint'))
+            ckpt = tf.train.get_checkpoint_state(os.path.dirname('checkpoints/convnet_layers/checkpoint'))
             if ckpt and ckpt.model_checkpoint_path:
                 saver.restore(sess, ckpt.model_checkpoint_path)
             

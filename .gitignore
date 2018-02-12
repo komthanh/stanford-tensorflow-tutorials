@@ -3,12 +3,8 @@
 
 *.SUNet
 *.pyc
-
-
+.env/*
+examples/data/*
+examples/graphs/*
 examples/checkpoints/*
-
-examples/chatbot/processed/*
-examples/chatbot/checkpoints/*
-examples/chatbot/data_analysis.py
-
-assignments/chatbot/processed/*
+examples/visualization/*
